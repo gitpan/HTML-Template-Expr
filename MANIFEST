@@ -7,12 +7,14 @@ t/00load.t
 t/01parse.t
 t/02basic.t
 t/03complex.t
+t/04register.t
 t/templates/foo.tmpl
 t/templates/complex.tmpl
 t/templates/loop.tmpl
 t/templates/func.tmpl
 t/templates/complex.tmpl
 t/templates/numerics.tmpl
+t/templates/register.tmpl
 GPL
 ARTISTIC
 ANNOUNCE

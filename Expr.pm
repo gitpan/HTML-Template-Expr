@@ -3,10 +3,10 @@ package HTML::Template::Expr;
 use strict;
 use vars qw($VERSION);
 
-$VERSION = '0.02';
+$VERSION = '0.03';
 
 use HTML::Template 2.4;
-use Carp qw(croak confess);
+use Carp qw(croak confess carp);
 use Parse::RecDescent;
 
 use base 'HTML::Template';
@@ -133,32 +133,20 @@ sub new {
   $options{global_vars} = 1;
 
   # create an HTML::Template object, catch the results to keep error
-  # message line-numbers helpful
+  # message line-numbers helpful.
   eval {
-    $self = HTML::Template->new(%options);
+    $self = $pkg->SUPER::new(%options, 
+			     expr => \@expr, 
+			     expr_func => $options{functions} || {});
   };
   croak("HTML::Template::Expr->new() : Error creating HTML::Template object : $@") if $@;
 
-  # stow expr
-  $self->{expr} = \@expr;
-
-  # get functions
-  if ($options{functions}) {
-    $self->{expr_func} = $options{functions};
-  } else {
-    $self->{expr_func} = {};
-  }
-
-  # doubly blessed and sent into the world
-  return bless($self, $pkg);
-
+  return $self;
 }
 
 sub _expr_filter {
   my $expr = shift;
   my $text = shift;
-
-  # print STDERR "\n\nTEXT IN:\n $$text\n";  
 
   # find expressions and create parse trees
   my ($ref, $tree, $expr_text, $vars, $which, $out);
@@ -221,7 +209,18 @@ sub _expr_vars {
 
 sub output {
   my $self = shift;
-  my $expr = $self->{expr};
+  my $parse_stack = $self->{parse_stack};
+  my $options = $self->{options};
+  my ($expr, $expr_func);
+
+  # pull expr and expr_func out of the parse_stack for cache mode.
+  if ($options->{cache}) {
+    $expr      = pop @$parse_stack;
+    $expr_func = pop @$parse_stack;
+  } else {
+    $expr      = $options->{expr};
+    $expr_func = $options->{expr_func};
+  }
 
   # setup expression evaluators
   my %param;
@@ -232,9 +231,17 @@ sub output {
   $self->param(\%param);
 
   # setup %FUNC 
-  local %FUNC = (%FUNC, %{$self->{expr_func}});
+  local %FUNC = (%FUNC, %$expr_func);
 
-  return HTML::Template::output($self, @_);
+  my $result = HTML::Template::output($self, @_);
+
+  # restore cached values to their hideout in the parse_stack
+  if ($options->{cache}) {
+    push @$parse_stack, $expr_func;
+    push @$parse_stack, $expr;
+  }
+  
+  return $result;
 }
 
 sub _expr_evaluate {
@@ -314,6 +321,27 @@ sub _expr_evaluate {
   croak("HTML::Template::Expr : fell off the edge of _expr_evaluate()!  This is a bug - please report it to the author.");
 }
 
+sub register_function {
+  my($class, $name, $sub) = @_;
+
+  croak("HTML::Template::Expr : args 3 of register_function must be subroutine reference\n")
+    unless ref($sub) eq 'CODE';
+
+  $FUNC{$name} = $sub;
+}
+
+
+# Make caching work right by hiding our vars in the parse_stack
+# between cache store and load.  This is such a hack.
+sub _commit_to_cache {
+  my $self = shift;
+  my $parse_stack = $self->{parse_stack};
+
+  push @$parse_stack, $self->{options}{expr_func};
+  push @$parse_stack, $self->{options}{expr};
+
+  my $result = HTML::Template::_commit_to_cache($self, @_);
+}
 
 1;
 __END__
@@ -539,11 +567,16 @@ But this is good:
 
 =head1 DEFINING NEW FUNCTIONS
 
-To defined a new function, pass a C<functions> option to new:
+To define a new function, pass a C<functions> option to new:
 
   $t = HTML::Template::Expr->new(filename => 'foo.tmpl',
                                  functions => 
                                    { func_name => \&func_handler });
+
+Or, you can use C<register_function> class method to register
+the function globally:
+
+  HTML::Template::Expr->register_function(func_name => \&func_handler);
 
 You provide a subroutine reference that will be called during output.
 It will recieve as arguments the parameters specified in the template.
@@ -567,6 +600,21 @@ Then you can use it in your template:
   <tmpl_if expr="directory_exists('/home/sam')">
 
 This can be abused in ways that make my teeth hurt.
+
+=head1 MOD_PERL TIP
+
+C<register_function> class method can be called in mod_perl's
+startup.pl to define widely used common functions to
+HTML::Template::Expr. Add something like this to your startup.pl:
+
+  use HTML::Template::Expr;
+
+  HTML::Template::Expr->register_function(foozicate => sub { ... });
+  HTML::Template::Expr->register_function(barify    => sub { ... });
+  HTML::Template::Expr->register_function(baznate   => sub { ... });
+
+You might also want to pre-compile some commonly used templates and
+cache them.  See L<HTML::Template>'s FAQ for instructions.
 
 =head1 CAVEATS
 
@@ -592,6 +640,16 @@ but I reserve the right to forward bug reports to the mailing list.
 When submitting bug reports, be sure to include full details,
 including the VERSION of the module, a test script and a test template
 demonstrating the problem!
+
+=head1 CREDITS
+
+The following people have generously submitted bug reports, patches
+and ideas:
+
+   Peter Leonard
+   Tatsuhiko Miyagawa
+
+Thanks!
 
 =head1 AUTHOR
 

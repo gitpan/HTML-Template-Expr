@@ -1,13 +1,11 @@
-ANNOUNCEMENT: HTML::Template::Expr 0.02
+ANNOUNCEMENT: HTML::Template::Expr 0.03
 
 CHANGES
 
-- Fixed bug where numeric functions all returned 1. 
-  (reported by Peter Leonard)
+- Added register_function() class method add functions globally. 
+  (Tatsuhiko Miyagawa)
 
-- Improved performance over 300% with a new grammar and expression evaluator.
-
-- Enhanced grammar to support call(foo > 10) syntax.
+- Fixed broken cache mode.
 
 
 DESCRIPTION
@@ -26,7 +24,7 @@ AVAILABILITY
 
 This module is available on SourceForge.  Download it at:
 
-  http://prdownloads.sourceforge.net/html-template/HTML-Template-Expr-0.02.tar.gz
+  http://prdownloads.sourceforge.net/html-template/HTML-Template-Expr-0.03.tar.gz
 
 The module is also available on CPAN.  You can get it using CPAN.pm or
 go to:

@@ -11,3 +11,9 @@ Revision history for HTML::Template::Expr.
       evaluator.
 
     - Enhanced grammar to support call(foo > 10) syntax.
+
+0.03
+    - Added register_function() class method add functions globally. 
+      (Tatsuhiko Miyagawa)
+
+    - Fixed broken cache mode.
