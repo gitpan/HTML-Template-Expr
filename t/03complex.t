@@ -1,13 +1,18 @@
-use Test::More tests => 16;
+use Test::More tests => 18;
 use HTML::Template::Expr;
 
 my $template = HTML::Template::Expr->new(path => ['t/templates'],
                                       filename => 'complex.tmpl',
                                      );
+is($template->query(name => 'unused'), 'VAR', "query(name => unused)");
+my %params = map { $_ => 1 } $template->param();
+ok(exists $params{unused}, "param(unused)");
+
 $template->param(foo => 11,
                  bar => 0,
                  fname => 'president',
-                 lname => 'clinton');
+                 lname => 'clinton',
+                 unused => 0);
 my $output = $template->output();
 like($output, qr/Foo is greater than 10/i, "greater than");
 ok($output !~ qr/Bar and Foo/i, "and");

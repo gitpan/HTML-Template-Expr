@@ -15,6 +15,7 @@ t/templates/func.tmpl
 t/templates/complex.tmpl
 t/templates/numerics.tmpl
 t/templates/register.tmpl
+t/templates/negative.tmpl
 GPL
 ARTISTIC
 ANNOUNCE

@@ -1,12 +1,15 @@
-ANNOUNCEMENT: HTML::Template::Expr 0.03
+ANNOUNCEMENT: HTML::Template::Expr 0.04
 
 CHANGES
 
-- Added register_function() class method add functions globally. 
-  (Tatsuhiko Miyagawa)
+- Fixed parser to recognize negative numbers.  Thanks to Fran
+  Fabrizio for the report.
 
-- Fixed broken cache mode.
+- Fixed parser to allow for HTML-comment style tags.  Thanks to
+  Stuhlpfarrer Gerhard for the spot.
 
+- Updated mailing-list information to reflect move from vm.com to
+  sourceforge.net
 
 DESCRIPTION
 
@@ -24,7 +27,7 @@ AVAILABILITY
 
 This module is available on SourceForge.  Download it at:
 
-  http://prdownloads.sourceforge.net/html-template/HTML-Template-Expr-0.03.tar.gz
+  http://html-template.sourceforge.net
 
 The module is also available on CPAN.  You can get it using CPAN.pm or
 go to:
@@ -34,5 +37,6 @@ go to:
 
 CONTACT INFO
 
-You can join the HTML::Template mailing-list by sending a blank
-message to htmltmpl-subscribe@lists.vm.com.
+You can join the HTML::Template mailing-list by visiting:
+
+  http://lists.sourceforge.net/lists/listinfo/html-template-users

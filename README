@@ -1,5 +1,18 @@
-HTML::Template::Expr version 0.01
+HTML::Template::Expr version 0.04
 =================================
+
+CHANGES
+
+- Fixed parser to recognize negative numbers.  Thanks to Fran
+  Fabrizio for the report.
+
+- Fixed parser to allow for HTML-comment style tags.  Thanks to
+  Stuhlpfarrer Gerhard for the spot.
+
+- Updated mailing-list information to reflect move from vm.com to
+  sourceforge.net
+
+DESCRIPTION
 
 This module provides an extension to HTML::Template which allows
 expressions in the template syntax.  This is purely an addition - all

@@ -3,7 +3,7 @@ package HTML::Template::Expr;
 use strict;
 use vars qw($VERSION);
 
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 use HTML::Template 2.4;
 use Carp qw(croak confess carp);
@@ -48,8 +48,8 @@ args          : <leftop: subexpression ',' subexpression>
 
 var           : /[A-Za-z_][A-Za-z0-9_]*/  { \\\$item[1] }
 
-literal       : /\\d*\\.\\d+/             { \$item[1] }
-              | /\\d+/                    { \$item[1] }
+literal       : /-?\\d*\\.\\d+/           { \$item[1] }
+              | /-?\\d+/                  { \$item[1] }
               | <perl_quotelike>          { \$item[1][2] }
 
 END
@@ -150,7 +150,7 @@ sub _expr_filter {
 
   # find expressions and create parse trees
   my ($ref, $tree, $expr_text, $vars, $which, $out);
-  $$text =~ s/<[Tt][Mm][Pp][Ll]_([Ii][Ff]|[Uu][Nn][Ll][Ee][Ss][Ss]|[Vv][Aa][Rr])\s+[Ee][Xx][Pp][Rr]="(.*?)"\s*>
+  $$text =~ s/<(?:!--\s*)?[Tt][Mm][Pp][Ll]_([Ii][Ff]|[Uu][Nn][Ll][Ee][Ss][Ss]|[Vv][Aa][Rr])\s+[Ee][Xx][Pp][Rr]="(.*?)"\s*(?:--)?>
              /
                $which = $1;
                $expr_text = $2;  
@@ -631,10 +631,13 @@ working on this for future versions and patches are always welcome.
 
 =head1 BUGS
 
-When you find a bug, join the mailing list and tell us about it
-(htmltmpl@lists.vm.com).  You can join the HTML::Template mailing-list
-by sending a blank email to htmltmpl-subscribe@lists.vm.com.  Of
-course, you can still email me directly (sam@tregar.com) with bugs,
+I am aware of no bugs - if you find one, join the mailing list and
+tell us about it.  You can join the HTML::Template mailing-list by
+visiting:
+
+  http://lists.sourceforge.net/lists/listinfo/html-template-users
+
+Of course, you can still email me directly (sam@tregar.com) with bugs,
 but I reserve the right to forward bug reports to the mailing list.
 
 When submitting bug reports, be sure to include full details,

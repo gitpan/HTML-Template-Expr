@@ -17,3 +17,13 @@ Revision history for HTML::Template::Expr.
       (Tatsuhiko Miyagawa)
 
     - Fixed broken cache mode.
+
+0.04 Thu Aug 29 12:00:00 2002
+    - Fixed parser to recognize negative numbers.  Thanks to Fran
+      Fabrizio for the report.
+
+    - Fixed parser to allow for HTML-comment style tags.  Thanks to
+      Stuhlpfarrer Gerhard for the spot.
+
+    - Updated mailing-list information to reflect move from vm.com to
+      sourceforge.net
