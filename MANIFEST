@@ -3,11 +3,17 @@ Expr.pm
 Makefile.PL
 MANIFEST
 README
-test.pl
-templates/foo.tmpl
-templates/complex.tmpl
-templates/loop.tmpl
-templates/func.tmpl
+t/00load.t
+t/01parse.t
+t/02basic.t
+t/03complex.t
+t/templates/foo.tmpl
+t/templates/complex.tmpl
+t/templates/loop.tmpl
+t/templates/func.tmpl
+t/templates/complex.tmpl
+t/templates/numerics.tmpl
 GPL
 ARTISTIC
+ANNOUNCE
 

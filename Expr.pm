@@ -3,84 +3,57 @@ package HTML::Template::Expr;
 use strict;
 use vars qw($VERSION);
 
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 use HTML::Template 2.4;
 use Carp qw(croak confess);
 use Parse::RecDescent;
-# use Data::Dumper;
 
 use base 'HTML::Template';
 
+# constants used in the expression tree
+use constant BIN_OP          => 1;
+use constant FUNCTION_CALL   => 2;
+
 use vars qw($GRAMMAR);
 $GRAMMAR = <<END;
-<autotree>
-
 expression    : subexpression /^\$/  { \$return = \$item[1]; } 
 
-subexpression : '(' comparison ')'
-              | '(' math ')'
-              | '(' logic ')'
-              | '(' subexpression ')' { \$item{subexpression} }
-              | function_call
-              | thing
+subexpression : binary_op             { \$item[1] }
+              | function_call         { \$item[1] }
+              | var                   { \$item[1] }
+              | literal               { \$item[1] }
+              | '(' subexpression ')' { \$item[2] }
               | <error>
 
-comparison    : thing comparison_op thing
-              { [ \$item{comparison_op}{__VALUE__}, \$item[1], \$item[3] ] }
-              | thing comparison_op subexpression
-              { [ \$item{comparison_op}{__VALUE__}, \$item[1], \$item[3] ] }
-              | subexpression comparison_op thing
-              { [ \$item{comparison_op}{__VALUE__}, \$item[1], \$item[3] ] }
-              | subexpression comparison_op subexpression
-              { [ \$item{comparison_op}{__VALUE__}, \$item[1], \$item[3] ] }
+binary_op     : '(' subexpression op subexpression ')'
+                { [ \$item[3][0], \$item[3][1], \$item[2], \$item[4] ] }
 
-comparison_op : '>=' | '<=' | '==' | '!=' | '<'  | '>'  
-              | 'le' | 'ge' | 'eq' | 'ne' | 'lt' | 'gt'
+op            : />=?|<=?|!=|==/      { [ ${\BIN_OP},  \$item[1] ] }
+              | /le|ge|eq|ne|lt|gt/  { [ ${\BIN_OP},  \$item[1] ] }
+              | /\\|\\||or|&&|and/   { [ ${\BIN_OP},  \$item[1] ] }
+              | /[-+*\\/\%]/         { [ ${\BIN_OP},  \$item[1] ] }
 
-math          : thing math_op thing
-              { [ \$item{math_op}{__VALUE__}, \$item[1], \$item[3] ] }
-              | thing math_op subexpression
-              { [ \$item{math_op}{__VALUE__}, \$item[1], \$item[3] ] }
-              | subexpression math_op thing
-              { [ \$item{math_op}{__VALUE__}, \$item[1], \$item[3] ] }
-              | subexpression math_op subexpression
-              { [ \$item{math_op}{__VALUE__}, \$item[1], \$item[3] ] }
-
-math_op       : '+' | '-' | '*' | '/' | '%'
-
-logic         : thing logic_op thing
-              { [ \$item{logic_op}{__VALUE__}, \$item[1], \$item[3] ] }
-              | thing logic_op subexpression
-              { [ \$item{logic_op}{__VALUE__}, \$item[1], \$item[3] ] }
-              | subexpression logic_op thing
-              { [ \$item{logic_op}{__VALUE__}, \$item[1], \$item[3] ] }
-              | subexpression logic_op subexpression
-              { [ \$item{logic_op}{__VALUE__}, \$item[1], \$item[3] ] }
-
-logic_op      : '||' | 'or' | '&&' | 'and'
-
-function_call : function_name '(' args ')' | function_name '(' ')'
+function_call : function_name '(' args ')'  
+                { [ ${\FUNCTION_CALL}, \$item[1], \$item[3] ] }
+              | function_name ...'(' subexpression
+                { [ ${\FUNCTION_CALL}, \$item[1], [ \$item[3] ] ] }
+              | function_name '(' ')'
+                { [ ${\FUNCTION_CALL}, \$item[1] ] }
 
 function_name : /[A-Za-z_][A-Za-z0-9_]*/
+                { \$item[1] }
 
-args          : arg_list | subexpression
+args          : <leftop: subexpression ',' subexpression>
 
-arg_list      : <leftop: subexpression ',' subexpression>
-                { \@item[1 .. \$#item]; }
+var           : /[A-Za-z_][A-Za-z0-9_]*/  { \\\$item[1] }
 
-thing         : var    { \$item{var};  }
-              | float  { \$item{float}{__VALUE__}  }
-              | int    { \$item{int}{__VALUE__}    }
-              | string { \$item{string}{__DIRECTIVE1__}[2] }
-
-
-var           : /[A-Za-z_][A-Za-z0-9_]*/
-float         : /\\d*\\.\\d+/
-int           : /\\d+/
-string        : <perl_quotelike>
+literal       : /\\d*\\.\\d+/             { \$item[1] }
+              | /\\d+/                    { \$item[1] }
+              | <perl_quotelike>          { \$item[1][2] }
 
 END
+
 
 # create global parser
 use vars qw($PARSER);
@@ -90,7 +63,7 @@ $PARSER = Parse::RecDescent->new($GRAMMAR);
 use vars qw(%FUNC);
 %FUNC = 
   (
-   'sprintf' => sub { sprintf(@_); },
+   'sprintf' => sub { sprintf(shift, @_); },
    'substr'  => sub { 
      return substr($_[0], $_[1]) if @_ == 2; 
      return substr($_[0], $_[1], $_[2]);
@@ -103,16 +76,16 @@ use vars qw(%FUNC);
    'defined' => sub { defined($_[0]); },
    'abs'     => sub { abs($_[0]); },
    'atan2'   => sub { atan2($_[0], $_[1]); },
-   'cos'     => sub { cos(@_); },
-   'exp'     => sub { exp(@_); },
-   'hex'     => sub { hex(@_); },
-   'int'     => sub { int(@_); },
-   'log'     => sub { log(@_); },
-   'oct'     => sub { oct(@_); },
-   'rand'    => sub { rand(@_); },
-   'sin'     => sub { sin(@_); },
-   'sqrt'    => sub { sqrt(@_); },
-   'srand'   => sub { srand(@_); },
+   'cos'     => sub { cos($_[0]); },
+   'exp'     => sub { exp($_[0]); },
+   'hex'     => sub { hex($_[0]); },
+   'int'     => sub { int($_[0]); },
+   'log'     => sub { log($_[0]); },
+   'oct'     => sub { oct($_[0]); },
+   'rand'    => sub { rand($_[0]); },
+   'sin'     => sub { sin($_[0]); },
+   'sqrt'    => sub { sqrt($_[0]); },
+   'srand'   => sub { srand($_[0]); },
   );
 
 sub new { 
@@ -217,55 +190,32 @@ sub _expr_filter {
                # add the expression placeholder and replace
                $out . "<\/tmpl_if><tmpl_$which __expr_" . $#{$expr} . "__>";
              /xeg;
+  # stupid emacs - /
 
-  # print STDERR "\n\nTEXT OUT:\n $$text\n";
   return;
 }
 
 # find all variables in a parse tree
 sub _expr_vars {
-  my $tree = shift;
+  my %vars;
 
-  return unless ref $tree;
-
-  if (ref($tree) eq 'var') {
-    return ($tree->{__VALUE__});
-  } elsif ($tree->{thing}) {
-    return _expr_vars($tree->{thing});
-  } elsif ($tree->{expression}) {
-    return _expr_vars($tree->{expression});
-  } elsif ($tree->{subexpression}) {
-    return _expr_vars($tree->{subexpression});
-  } elsif ($tree->{comparison}) {
-    return (_expr_vars($tree->{comparison}[0]), 
-            _expr_vars($tree->{comparison}[1]));
-  } elsif ($tree->{math}) {
-    return (_expr_vars($tree->{math}[0]), 
-            _expr_vars($tree->{math}[1]));
-  } elsif ($tree->{logic}) {
-    return (_expr_vars($tree->{logic}[0]), 
-            _expr_vars($tree->{logic}[1]));
-  } elsif ($tree->{function_call}) {
-    if ($tree->{function_call}{args}) {
-      if ($tree->{function_call}{args}{arg_list}) {
-        return map { _expr_vars($_) } @{$tree->{function_call}{args}{arg_list}};
+  while(@_) {
+    my $node = shift;
+    if (ref($node)) {
+      if (ref $node eq 'SCALAR') {
+	# found a variable
+	$vars{$$node} = 1;
+      } elsif ($node->[0] == FUNCTION_CALL) {
+	# function calls
+	push(@_, @{$node->[2]}) if defined $node->[2];
       } else {
-        return _expr_vars($tree->{function_call}{args});
+	# binary ops
+	push(@_, $node->[2], $node->[3]);
       }
-    } else {
-      return;
     }
   }
 
-
-    
-    local $Data::Dumper::Indent = 1;
-    local $Data::Dumper::Purity = 0;
-    local $Data::Dumper::Deepcopy = 1;
-    print STDERR Data::Dumper->Dump([\$tree],['$tree']);
-
-  
-  confess("HTML::Template::_expr_vars fell off the edge!");
+  return keys %vars;
 }
 
 
@@ -289,104 +239,75 @@ sub output {
 
 sub _expr_evaluate {
   my ($tree, $template) = @_;
-  # print STDERR Data::Dumper->Dump([$tree],['$tree']);
-
-  # get at subexpressions, if we're at the top
-  $tree = $tree->[0] if ref($tree) eq 'ARRAY';
-  
-  # return scalars up
-  return $tree unless ref $tree;
-  
-  # lookup var
-  return $template->param($tree->{__VALUE__}) if ref($tree) eq 'var';
-
-  # handle expressions
   my ($op, $lhs, $rhs);
-  if (ref $tree eq 'subexpression') {
-    if ($tree->{thing}) {
-      return _expr_evaluate($tree->{thing}, $template);
-    } elsif ($tree->{comparison}) {
-      ($op, $lhs, $rhs) = @{$tree->{comparison}};
 
-      # recurse and resolve subexpressions
-      $lhs = _expr_evaluate($lhs, $template) if ref($lhs);
-      $rhs = _expr_evaluate($rhs, $template) if ref($rhs);
+  # return literals up
+  return $tree unless ref $tree;
 
-      # do the op
-      $op eq '>=' and return $lhs >= $rhs;
-      $op eq '<=' and return $lhs <= $rhs;
-      $op eq '==' and return $lhs == $rhs;
-      $op eq '!=' and return $lhs != $rhs;
-      $op eq '>'  and return $lhs >  $rhs;
-      $op eq '<'  and return $lhs <  $rhs;
-      $op eq 'le' and return $lhs le $rhs;
-      $op eq 'ge' and return $lhs ge $rhs;
-      $op eq 'eq' and return $lhs eq $rhs;
-      $op eq 'ne' and return $lhs ne $rhs;
-      $op eq 'lt' and return $lhs lt $rhs;
-      $op eq 'gt' and return $lhs gt $rhs;
+  # lookup vars
+  return $template->param($$tree)
+    if ref $tree eq 'SCALAR';
 
-      confess("HTML::Template::Expr : unknown op: $op");
+  my $type = $tree->[0];
 
-    } elsif ($tree->{math}) {
-      ($op, $lhs, $rhs) = @{$tree->{math}};
-      
-      # recurse and resolve subexpressions
+  # handle binary expressions
+  if ($type == BIN_OP) {
+    ($op, $lhs, $rhs) = ($tree->[1], $tree->[2], $tree->[3]);
+
+    # recurse and resolve subexpressions
+    $lhs = _expr_evaluate($lhs, $template) if ref($lhs);
+    $rhs = _expr_evaluate($rhs, $template) if ref($rhs);
+    
+    # do the op
+    $op eq '==' and return $lhs == $rhs;
+    $op eq 'eq' and return $lhs eq $rhs;
+    $op eq '>'  and return $lhs >  $rhs;
+    $op eq '<'  and return $lhs <  $rhs;
+
+    $op eq '!=' and return $lhs != $rhs; 
+    $op eq 'ne' and return $lhs ne $rhs;
+    $op eq '>=' and return $lhs >= $rhs;
+    $op eq '<=' and return $lhs <= $rhs;
+
+    $op eq '+' and return $lhs + $rhs;
+    $op eq '-' and return $lhs - $rhs;
+    $op eq '/' and return $lhs / $rhs;
+    $op eq '*' and return $lhs * $rhs;
+    $op eq '%' and return $lhs %  $rhs;
+
+    if ($op eq 'or' or $op eq '||') {
+      # short circuit or
       $lhs = _expr_evaluate($lhs, $template) if ref $lhs;
+      return 1 if $lhs;
       $rhs = _expr_evaluate($rhs, $template) if ref $rhs;
-      
-      # do the op
-      $op eq '+' and return $lhs + $rhs;
-      $op eq '-' and return $lhs - $rhs;
-      $op eq '/' and return $lhs / $rhs;
-      $op eq '*' and return $lhs * $rhs;
-      $op eq '%' and return $lhs %  $rhs;
-
-      confess("HTML::Template::Expr : unknown op: $op");
-      
-    } elsif ($tree->{logic}) {
-      ($op, $lhs, $rhs) = @{$tree->{logic}};
-
-      if ($op eq 'or' or $op eq '||') {
-        # short circuit or
-        $lhs = _expr_evaluate($lhs, $template) if ref $lhs;
-        return 1 if $lhs;
-        $rhs = _expr_evaluate($rhs, $template) if ref $rhs;
-        return 1 if $rhs;
-        return 0;
-      } else {
-        # short circuit and
-        $lhs = _expr_evaluate($lhs, $template) if ref $lhs;
-        return 0 unless $lhs;
-        $rhs = _expr_evaluate($rhs, $template) if ref $rhs;
-        return 0 unless $rhs;
-
-        return 1;
-      }
-    } elsif ($tree->{function_call}) {
-      my $func_name = $tree->{function_call}{function_name}{__VALUE__};
-      my $func;
-      if (exists($FUNC{$func_name})) {
-        $func = $FUNC{$func_name};
-      } else {
-        croak("HTML::Template::Expr : found unknown subroutine call : $func_name\n");
-      }
-
-      if ($tree->{function_call}{args}) {
-        if ($tree->{function_call}{args}{arg_list}) {
-          my @args = map { _expr_evaluate($_, $template) } @{$tree->{function_call}{args}{arg_list}};
-          my $result = $func->(@args);
-          return $result;
-        } else {
-          return $func->(_expr_evaluate($tree->{function_call}{args}, $template));
-        }
-      } else {
-        return $func->();
-      }
-        
+      return 1 if $rhs;
+      return 0;
     } else {
-       # empty expression, recurse
-       return _expr_evaluate($tree->{subexpression}, $template);
+      # short circuit and
+      $lhs = _expr_evaluate($lhs, $template) if ref $lhs;
+      return 0 unless $lhs;
+      $rhs = _expr_evaluate($rhs, $template) if ref $rhs;
+      return 0 unless $rhs;
+      return 1;
+    }
+
+    $op eq 'le' and return $lhs le $rhs;
+    $op eq 'ge' and return $lhs ge $rhs;
+    $op eq 'lt' and return $lhs lt $rhs;
+    $op eq 'gt' and return $lhs gt $rhs;
+    
+    confess("HTML::Template::Expr : unknown op: $op");
+  }
+
+  if ($type == FUNCTION_CALL) {
+    croak("HTML::Template::Expr : found unknown subroutine call : $tree->[1]\n") unless exists($FUNC{$tree->[1]});
+
+    if (defined $tree->[2]) {
+      return $FUNC{$tree->[1]}->(
+	 map { _expr_evaluate($_, $template) } @{$tree->[2]}
+      );
+    } else {
+      return $FUNC{$tree->[1]}->();
     }
   }
 

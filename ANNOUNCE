@@ -1,0 +1,40 @@
+ANNOUNCEMENT: HTML::Template::Expr 0.02
+
+CHANGES
+
+- Fixed bug where numeric functions all returned 1. 
+  (reported by Peter Leonard)
+
+- Improved performance over 300% with a new grammar and expression evaluator.
+
+- Enhanced grammar to support call(foo > 10) syntax.
+
+
+DESCRIPTION
+
+This module provides an extension to HTML::Template which allows
+expressions in the template syntax.  This is purely an addition - all
+the normal HTML::Template options, syntax and behaviors will still
+work.
+
+Expression support includes comparisons, math operations, string
+operations and a mechanism to allow you add your own functions at
+runtime.
+
+
+AVAILABILITY
+
+This module is available on SourceForge.  Download it at:
+
+  http://prdownloads.sourceforge.net/html-template/HTML-Template-Expr-0.02.tar.gz
+
+The module is also available on CPAN.  You can get it using CPAN.pm or
+go to:
+
+  http://www.cpan.org/authors/id/S/SA/SAMTREGAR/
+
+
+CONTACT INFO
+
+You can join the HTML::Template mailing-list by sending a blank
+message to htmltmpl-subscribe@lists.vm.com.
