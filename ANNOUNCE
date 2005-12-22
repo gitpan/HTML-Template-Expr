@@ -1,15 +1,8 @@
-ANNOUNCEMENT: HTML::Template::Expr 0.04
+ANNOUNCEMENT: HTML::Template::Expr 0.05
 
 CHANGES
 
-- Fixed parser to recognize negative numbers.  Thanks to Fran
-  Fabrizio for the report.
-
-- Fixed parser to allow for HTML-comment style tags.  Thanks to
-  Stuhlpfarrer Gerhard for the spot.
-
-- Updated mailing-list information to reflect move from vm.com to
-  sourceforge.net
+    - Added a compatibility fix required by HTML::Template v2.8.
 
 DESCRIPTION
 

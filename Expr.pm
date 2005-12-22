@@ -3,7 +3,7 @@ package HTML::Template::Expr;
 use strict;
 use vars qw($VERSION);
 
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 use HTML::Template 2.4;
 use Carp qw(croak confess carp);
@@ -206,6 +206,12 @@ sub _expr_vars {
   return keys %vars;
 }
 
+# allow loops to stay as HTML::Template objects, we don't need to
+# override output for them
+sub _new_from_loop {
+    my ($pkg, @args) = @_;
+    return HTML::Template->_new_from_loop(@args);
+}
 
 sub output {
   my $self = shift;

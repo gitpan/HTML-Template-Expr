@@ -27,3 +27,6 @@ Revision history for HTML::Template::Expr.
 
     - Updated mailing-list information to reflect move from vm.com to
       sourceforge.net
+
+0.05 Wed Dec 21 18:56:49 EST 2005
+    - Added a compatibility fix required by HTML::Template v2.8.
