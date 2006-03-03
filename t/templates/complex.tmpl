@@ -11,7 +11,28 @@
    Bar or Foo.
 </tmpl_if>
 
+<tmpl_if expr="bar || foo || bar || foo">
+   Multiple ors works
+</tmpl_if>
+
+<tmpl_if expr="(bar || foo || bar || foo) && bar">
+   And 0 works
+</tmpl_if>
+
+<tmpl_if expr="(foo + 1) < (foo + 2)">
+   Addition and comparison 1
+</tmpl_if>
+
+<tmpl_if expr="(foo + 1) > (foo + 2)">
+   Addition and comparison 2
+</tmpl_if>
+
+<tmpl_if expr="((foo + 1) > (foo + 2)) || ((foo + 1) < (foo + 2))">
+   Addition and comparison 3
+</tmpl_if>
+
 Bar - Foo = <tmpl_var expr="bar - foo">
+Foo - Bar + 10 = <tmpl_var expr="foo - bar + 10">
 
 <tmpl_if expr="((foo * foo) > (foo + foo))">
    Math Works, Alright

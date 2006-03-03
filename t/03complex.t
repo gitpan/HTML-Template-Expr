@@ -1,4 +1,4 @@
-use Test::More tests => 18;
+use Test::More qw(no_plan);
 use HTML::Template::Expr;
 
 my $template = HTML::Template::Expr->new(path => ['t/templates'],
@@ -15,13 +15,19 @@ $template->param(foo => 11,
                  unused => 0);
 my $output = $template->output();
 like($output, qr/Foo is greater than 10/i, "greater than");
-ok($output !~ qr/Bar and Foo/i, "and");
+unlike($output, qr/Bar and Foo/i, "and");
 like($output, qr/Bar or Foo/i, "or");
 like($output, qr/Bar - Foo = -11/i, "subtraction");
+like($output, qr/Foo - Bar \+ 10 = 21/i, "math strings");
 like($output, qr/Math Works, Alright/i, "math");
 like($output, qr/My name is President Clinton/, "string op 1");
 like($output, qr/Resident Alien is phat/, "string op 2");
 like($output, qr/Resident has 8 letters, which is less than 10 and greater than 5/, "string length");
+like($output, qr/Multiple ors works/, 'multiple or test');
+like($output, qr/Addition and comparison 1/);
+unlike($output, qr/Addition and comparison 2/);
+like($output, qr/Addition and comparison 3/);
+unlike($output, qr/And 0 works/);
 
 $template = HTML::Template::Expr->new(path => ['t/templates'],
                                       filename => 'loop.tmpl',

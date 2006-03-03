@@ -3,7 +3,7 @@ package HTML::Template::Expr;
 use strict;
 use vars qw($VERSION);
 
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 use HTML::Template 2.4;
 use Carp qw(croak confess carp);
@@ -11,46 +11,44 @@ use Parse::RecDescent;
 
 use base 'HTML::Template';
 
-# constants used in the expression tree
-use constant BIN_OP          => 1;
-use constant FUNCTION_CALL   => 2;
-
 use vars qw($GRAMMAR);
-$GRAMMAR = <<END;
-expression    : subexpression /^\$/  { \$return = \$item[1]; } 
+$GRAMMAR = <<'END';
+expression : paren /^$/  { $return = $item[1] } 
 
-subexpression : binary_op             { \$item[1] }
-              | function_call         { \$item[1] }
-              | var                   { \$item[1] }
-              | literal               { \$item[1] }
-              | '(' subexpression ')' { \$item[2] }
+paren         : '(' binary_op ')'     { $item[2] }
+              | '(' subexpression ')' { $item[2] }
+              | subexpression         { $item[1] }
+              | '(' paren ')'         { $item[2] }
+
+subexpression : function_call
+              | var
+              | literal
               | <error>
 
-binary_op     : '(' subexpression op subexpression ')'
-                { [ \$item[3][0], \$item[3][1], \$item[2], \$item[4] ] }
+binary_op     : paren (op paren { [ $item[2], $item[1] ] })(s)
+              { $return = [ 'SUB_EXPR', $item[1], map { @$_ } @{$item[2]} ] }
 
-op            : />=?|<=?|!=|==/      { [ ${\BIN_OP},  \$item[1] ] }
-              | /le|ge|eq|ne|lt|gt/  { [ ${\BIN_OP},  \$item[1] ] }
-              | /\\|\\||or|&&|and/   { [ ${\BIN_OP},  \$item[1] ] }
-              | /[-+*\\/\%]/         { [ ${\BIN_OP},  \$item[1] ] }
+op            : />=?|<=?|!=|==/      { [ 'BIN_OP',  $item[1] ] }
+              | /le|ge|eq|ne|lt|gt/  { [ 'BIN_OP',  $item[1] ] }
+              | /\|\||or|&&|and/     { [ 'BIN_OP',  $item[1] ] }
+              | /[-+*\/%]/           { [ 'BIN_OP',  $item[1] ] }
 
 function_call : function_name '(' args ')'  
-                { [ ${\FUNCTION_CALL}, \$item[1], \$item[3] ] }
-              | function_name ...'(' subexpression
-                { [ ${\FUNCTION_CALL}, \$item[1], [ \$item[3] ] ] }
+                { [ 'FUNCTION_CALL', $item[1], $item[3] ] }
+              | function_name ...'(' paren
+                { [ 'FUNCTION_CALL', $item[1], [ $item[3] ] ] }
               | function_name '(' ')'
-                { [ ${\FUNCTION_CALL}, \$item[1] ] }
+                { [ 'FUNCTION_CALL', $item[1] ] }
 
 function_name : /[A-Za-z_][A-Za-z0-9_]*/
-                { \$item[1] }
 
-args          : <leftop: subexpression ',' subexpression>
+args          : <leftop: paren ',' paren>
 
-var           : /[A-Za-z_][A-Za-z0-9_]*/  { \\\$item[1] }
+var           : /[A-Za-z_][A-Za-z0-9_]*/ { [ 'VAR', $item[1] ] }
 
-literal       : /-?\\d*\\.\\d+/           { \$item[1] }
-              | /-?\\d+/                  { \$item[1] }
-              | <perl_quotelike>          { \$item[1][2] }
+literal       : /-?\d*\.\d+/             { [ 'LITERAL', $item[1] ] }
+              | /-?\d+/                  { [ 'LITERAL', $item[1] ] }
+              | <perl_quotelike>         { [ 'LITERAL', $item[1][2] ] }
 
 END
 
@@ -185,25 +183,22 @@ sub _expr_filter {
 
 # find all variables in a parse tree
 sub _expr_vars {
-  my %vars;
+    my $tree = shift;
+    my %vars;
 
-  while(@_) {
-    my $node = shift;
-    if (ref($node)) {
-      if (ref $node eq 'SCALAR') {
-	# found a variable
-	$vars{$$node} = 1;
-      } elsif ($node->[0] == FUNCTION_CALL) {
-	# function calls
-	push(@_, @{$node->[2]}) if defined $node->[2];
-      } else {
-	# binary ops
-	push(@_, $node->[2], $node->[3]);
-      }
+    # hunt for VAR nodes in the tree
+    my @stack = @$tree;
+    while (@stack) {
+        my $node = shift @stack;
+        if (ref $node and ref $node eq 'ARRAY') {
+            if ($node->[0] eq 'VAR') {
+                $vars{$node->[1]} = 1;
+            } else {
+                push @stack, @$node;
+            }
+        }
     }
-  }
-
-  return keys %vars;
+    return keys %vars;
 }
 
 # allow loops to stay as HTML::Template objects, we don't need to
@@ -239,7 +234,7 @@ sub output {
   # setup %FUNC 
   local %FUNC = (%FUNC, %$expr_func);
 
-  my $result = HTML::Template::output($self, @_);
+  my $result = $self->SUPER::output(@_);
 
   # restore cached values to their hideout in the parse_stack
   if ($options->{cache}) {
@@ -252,79 +247,111 @@ sub output {
 
 sub _expr_evaluate {
   my ($tree, $template) = @_;
-  my ($op, $lhs, $rhs);
+  my ($op, $lhs, $rhs, $node, $type, @stack);
 
-  # return literals up
-  return $tree unless ref $tree;
+  my @nodes = $tree;
+  while (@nodes) {
+      my $node = shift @nodes;
+      my $type = $node->[0];
 
-  # lookup vars
-  return $template->param($$tree)
-    if ref $tree eq 'SCALAR';
+      if ($type eq 'LITERAL') {
+          push @stack, $node->[1];
+          next;
+      }
 
-  my $type = $tree->[0];
+      if ($type eq 'VAR') {
+          push @stack, $template->param($node->[1]);
+          next;
+      } 
 
-  # handle binary expressions
-  if ($type == BIN_OP) {
-    ($op, $lhs, $rhs) = ($tree->[1], $tree->[2], $tree->[3]);
+      if ($type eq 'SUB_EXPR') {
+          unshift @nodes, @{$node}[1..$#{$node}];
+          next;
+      }
 
-    # recurse and resolve subexpressions
-    $lhs = _expr_evaluate($lhs, $template) if ref($lhs);
-    $rhs = _expr_evaluate($rhs, $template) if ref($rhs);
+      if ($type eq 'BIN_OP') {
+          $op  = $node->[1];
+          $rhs = pop(@stack);
+          $lhs = pop(@stack);
+
+          # do the op
+          if ($op eq '==') {push @stack, $lhs == $rhs; next; }
+          if ($op eq 'eq') {push @stack, $lhs eq $rhs; next; }
+          if ($op eq '>')  {push @stack, $lhs >  $rhs; next; }
+          if ($op eq '<')  {push @stack, $lhs <  $rhs; next; }
+
+          if ($op eq '!=') {push @stack, $lhs != $rhs; next; }
+          if ($op eq 'ne') {push @stack, $lhs ne $rhs; next; }
+          if ($op eq '>=') {push @stack, $lhs >= $rhs; next; }
+          if ($op eq '<=') {push @stack, $lhs <= $rhs; next; }
+          
+          if ($op eq '+')  {push @stack, $lhs + $rhs;  next; }
+          if ($op eq '-')  {push @stack, $lhs - $rhs;  next; }
+          if ($op eq '/')  {push @stack, $lhs / $rhs;  next; }
+          if ($op eq '*')  {push @stack, $lhs * $rhs;  next; }
+          if ($op eq '%')  {push @stack, $lhs % $rhs;  next; }
+
+          if ($op eq 'le') {push @stack, $lhs le $rhs; next; }
+          if ($op eq 'ge') {push @stack, $lhs ge $rhs; next; }
+          if ($op eq 'lt') {push @stack, $lhs lt $rhs; next; }
+          if ($op eq 'gt') {push @stack, $lhs gt $rhs; next; }
+
+          # short circuit or
+          if ($op eq 'or' or $op eq '||') {
+              if ($lhs) {
+                  push @stack, 1;
+                  next;
+              }
+              if ($rhs) {
+                  push @stack, 1;
+                  next;
+              }
+              push @stack, 0;
+              next;
+          } 
+
+          # short circuit and
+          if ($op eq '&&' or $op eq 'and') {
+              unless ($lhs) {
+                  push @stack, 0;
+                  next;
+              }
+              unless ($rhs) {
+                  push @stack, 0;
+                  next;
+              }
+              push @stack, 1;
+              next;
+          }
     
-    # do the op
-    $op eq '==' and return $lhs == $rhs;
-    $op eq 'eq' and return $lhs eq $rhs;
-    $op eq '>'  and return $lhs >  $rhs;
-    $op eq '<'  and return $lhs <  $rhs;
+          confess("HTML::Template::Expr : unknown op: $op");
+      } 
 
-    $op eq '!=' and return $lhs != $rhs; 
-    $op eq 'ne' and return $lhs ne $rhs;
-    $op eq '>=' and return $lhs >= $rhs;
-    $op eq '<=' and return $lhs <= $rhs;
+      if ($type eq 'FUNCTION_CALL') {
+          my $name = $node->[1];
+          my $args = $node->[2];
+          croak("HTML::Template::Expr : found unknown subroutine call ".
+                ": $name.\n")
+            unless exists($FUNC{$name});
+          if (defined $args) {
+              # print STDERR "RESOLVING ARGS: " . Dumper($args) . "\n";
+              push @stack, 
+                $FUNC{$name}->(map { _expr_evaluate($_, $template) } @$args);
+          } else {
+              push @stack, $FUNC{$name}->();
+          }
+          next;
+      }
 
-    $op eq '+' and return $lhs + $rhs;
-    $op eq '-' and return $lhs - $rhs;
-    $op eq '/' and return $lhs / $rhs;
-    $op eq '*' and return $lhs * $rhs;
-    $op eq '%' and return $lhs %  $rhs;
-
-    if ($op eq 'or' or $op eq '||') {
-      # short circuit or
-      $lhs = _expr_evaluate($lhs, $template) if ref $lhs;
-      return 1 if $lhs;
-      $rhs = _expr_evaluate($rhs, $template) if ref $rhs;
-      return 1 if $rhs;
-      return 0;
-    } else {
-      # short circuit and
-      $lhs = _expr_evaluate($lhs, $template) if ref $lhs;
-      return 0 unless $lhs;
-      $rhs = _expr_evaluate($rhs, $template) if ref $rhs;
-      return 0 unless $rhs;
-      return 1;
-    }
-
-    $op eq 'le' and return $lhs le $rhs;
-    $op eq 'ge' and return $lhs ge $rhs;
-    $op eq 'lt' and return $lhs lt $rhs;
-    $op eq 'gt' and return $lhs gt $rhs;
-    
-    confess("HTML::Template::Expr : unknown op: $op");
+      confess("HTML::Template::Expr : unrecognized node in tree: $node");
   }
 
-  if ($type == FUNCTION_CALL) {
-    croak("HTML::Template::Expr : found unknown subroutine call : $tree->[1]\n") unless exists($FUNC{$tree->[1]});
-
-    if (defined $tree->[2]) {
-      return $FUNC{$tree->[1]}->(
-	 map { _expr_evaluate($_, $template) } @{$tree->[2]}
-      );
-    } else {
-      return $FUNC{$tree->[1]}->();
-    }
+  unless (@stack == 1) {
+      confess("HTML::Template::Expr : stack overflow!  ".
+              "Please report this bug to the maintainer.");
   }
 
-  croak("HTML::Template::Expr : fell off the edge of _expr_evaluate()!  This is a bug - please report it to the author.");
+  return $stack[0];
 }
 
 sub register_function {
@@ -423,15 +450,14 @@ String constants must be enclosed in quotes, single or double.  For example:
 
    <TMPL_VAR EXPR="sprintf('%d', foo)">
 
-The parser is currently rather simple, so all compound expressions
-must be parenthesized.  Examples:
+You can string together operators to produce complex booleans:
 
-   <TMPL_VAR EXPR="(10 + foo) / bar">
+  <TMPL_IF EXPR="(foo || bar || baz || (bif && bing) || (bananas > 10))">
+      I'm in a complex situation.
+  </TMPL_IF>
 
-   <TMPL_IF EXPR="(foo % 10) > (bar + 1)">
-
-If you don't like this rule please feel free to contribute a patch
-to improve the parser's grammar.
+The parser is pretty simple, so you may need to use parenthesis to get
+the desired precedence.
 
 =head1 COMPARISON
 
@@ -657,6 +683,7 @@ and ideas:
 
    Peter Leonard
    Tatsuhiko Miyagawa
+   Don Brodale
 
 Thanks!
 

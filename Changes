@@ -1,22 +1,9 @@
-Revision history for HTML::Template::Expr.
+0.06
+    - Rewrote grammar to support expressions with less parenthesis.
+      For example, "foo || bar || baz" now works.
 
-0.01  
-    - Initial Release.
-
-0.02    
-    - Fixed bug where numeric functions all returned 1. 
-      (reported by Peter Leonard)
-
-    - Improved performance over 300% with a new grammar and expression 
-      evaluator.
-
-    - Enhanced grammar to support call(foo > 10) syntax.
-
-0.03
-    - Added register_function() class method add functions globally. 
-      (Tatsuhiko Miyagawa)
-
-    - Fixed broken cache mode.
+0.05 Wed Dec 21 18:56:49 EST 2005
+    - Added a compatibility fix required by HTML::Template v2.8.
 
 0.04 Thu Aug 29 12:00:00 2002
     - Fixed parser to recognize negative numbers.  Thanks to Fran
@@ -28,5 +15,21 @@ Revision history for HTML::Template::Expr.
     - Updated mailing-list information to reflect move from vm.com to
       sourceforge.net
 
-0.05 Wed Dec 21 18:56:49 EST 2005
-    - Added a compatibility fix required by HTML::Template v2.8.
+0.03
+    - Added register_function() class method add functions globally. 
+      (Tatsuhiko Miyagawa)
+
+    - Fixed broken cache mode.
+
+0.02    
+    - Fixed bug where numeric functions all returned 1. 
+      (reported by Peter Leonard)
+
+    - Improved performance over 300% with a new grammar and expression 
+      evaluator.
+
+    - Enhanced grammar to support call(foo > 10) syntax.
+
+0.01  
+    - Initial Release.
+
