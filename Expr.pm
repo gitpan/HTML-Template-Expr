@@ -3,7 +3,7 @@ package HTML::Template::Expr;
 use strict;
 use vars qw($VERSION);
 
-$VERSION = '0.06';
+$VERSION = '0.07';
 
 use HTML::Template 2.4;
 use Carp qw(croak confess carp);
@@ -147,11 +147,21 @@ sub _expr_filter {
   my $text = shift;
 
   # find expressions and create parse trees
-  my ($ref, $tree, $expr_text, $vars, $which, $out);
-  $$text =~ s/<(?:!--\s*)?[Tt][Mm][Pp][Ll]_([Ii][Ff]|[Uu][Nn][Ll][Ee][Ss][Ss]|[Vv][Aa][Rr])\s+[Ee][Xx][Pp][Rr]="(.*?)"\s*(?:--)?>
+  my ($ref, $tree, $before_expr, $expr_text, $after_expr, $vars, $which, $out);
+  $$text =~ s/
+               <(?:!--\s*)?
+               [Tt][Mm][Pp][Ll]_
+               ([Ii][Ff]|[Uu][Nn][Ll][Ee][Ss][Ss]|[Vv][Aa][Rr]) # $1 => which tag
+               (\s+[^<]+)?                                      # $2 => before expr
+               \s+[Ee][Xx][Pp][Rr]=
+               "([^"]*)"                                        # $3 => the actual expr
+               (\s+[^>-]+)?                                     # $4 => after expr
+               \s*(?:--)?>
              /
-               $which = $1;
-               $expr_text = $2;  
+               $which       = $1;
+               $before_expr = $2 || '';
+               $expr_text   = $3;  
+               $after_expr  = $4 || '';
 
                # add enclosing parens to keep grammar simple
                $expr_text = "($expr_text)";
@@ -174,7 +184,7 @@ sub _expr_filter {
                push(@$expr, $tree);
                
                # add the expression placeholder and replace
-               $out . "<\/tmpl_if><tmpl_$which __expr_" . $#{$expr} . "__>";
+               $out . "<\/tmpl_if><tmpl_$which ${before_expr}__expr_" . $#{$expr} . "__$after_expr>";
              /xeg;
   # stupid emacs - /
 
@@ -334,11 +344,11 @@ sub _expr_evaluate {
                 ": $name.\n")
             unless exists($FUNC{$name});
           if (defined $args) {
-              # print STDERR "RESOLVING ARGS: " . Dumper($args) . "\n";
               push @stack, 
-                $FUNC{$name}->(map { _expr_evaluate($_, $template) } @$args);
+                scalar 
+                  $FUNC{$name}->(map { _expr_evaluate($_, $template) } @$args);
           } else {
-              push @stack, $FUNC{$name}->();
+              push @stack, scalar $FUNC{$name}->();
           }
           next;
       }

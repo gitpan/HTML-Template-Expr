@@ -1,8 +1,14 @@
-ANNOUNCEMENT: HTML::Template::Expr 0.05
+ANNOUNCEMENT: HTML::Template::Expr 0.07
 
 CHANGES
 
-    - Added a compatibility fix required by HTML::Template v2.8.
+    - Added support for ESCAPE attribute in combination with EXPR.
+      (Michael Peters)
+
+    - Fixed a bug where functions which returned 0 or more than one
+      return value would cause a stack under or overflow.  Functions
+      are now called in scalar context, eliminating the problem.
+      Thanks to Jamie Krasnoo for the spot.
 
 DESCRIPTION
 
